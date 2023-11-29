@@ -1,40 +1,38 @@
-use std::fs::{self, OpenOptions, File};
 use std::env;
-use std::io::Write;
+use crossterm::terminal;
+
+mod helpers;
 
 
-// fn print_contents(contents: &str, starting_line: u32, lines_number: u8) {
-//     for (i,_line) in contents.split("\n").enumerate() {
-//         println!("{i} {_line}")
-//     }
-// }
+struct CleanUp;
 
-fn print_contents(contents: &str) {
-    for (i,l) in contents.split("\n").enumerate() {
-        println!("{} {}", i, l);
+impl Drop for CleanUp {
+    fn drop(&mut self) {
+        terminal::disable_raw_mode().expect("Could not disable raw mode")
     }
 }
 
-fn main() {
+fn main() -> std::io::Result<()> {
+    let _clean_up = CleanUp;
     let args: Vec<String> = env::args().collect();
+    if args.len() != 2 {panic!("Wrong input format. Correct input format has the filename as the only arg.")}
+    
+    let path: String = args[1].clone();
 
-    if args.len() != 1 {panic!("Wrong input format. Correct input format has the filename as the only arg.")}
-    let path = &args[1];
-    let exists = fs::metadata(path).is_ok();
+    let mut content: String = helpers::load_file(&path);
+    let current_char_index = 0;
+    // let current_char = content[0] as char;
 
-    let mut file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(!exists)
-        .open(path)
-        .expect("Unable to open file");
+    terminal::enable_raw_mode().unwrap();
+    helpers::runtime_loop(&mut content);
 
-    let contents = fs::read_to_string(path).expect("Unable to read file");
-    // file.write_all(b"gay").expect("Unable to write to file");
-    print_contents(&contents);
-
-
-    if !exists {
-        println!("File created!")
-    }
+    // let mut buf = [0; 1];
+    
+    // while stdin().read(&mut buf).expect("Failed to read line") == 1 && buf != [b'q'] {
+    //     let c = buf[0] as char;
+    //     println!("{}\r", c);
+    //     // helpers::draw(&content, 0, 0);
+    // }
+    
+    Ok(())
 }
