@@ -6,7 +6,7 @@ use crossterm::{
     terminal,
     style::{Color, Print, ResetColor, SetForegroundColor},
 };
-
+use crossterm::terminal::{Clear, ClearType};
 
 pub fn load_file(path: &str) -> String {
     let exists = fs::metadata(path).is_ok();
@@ -58,7 +58,8 @@ pub fn runtime_loop(content: &mut String) {
 }
 
 pub fn draw(content: &str, starting_line: u32, current_char_index: i32) {
-    // stdout().execute(Clear());
+    // clear_screen();
+    println!("{}", content);
     for (i,l) in content.lines().enumerate() {
         execute!(
             stdout(),
@@ -66,7 +67,11 @@ pub fn draw(content: &str, starting_line: u32, current_char_index: i32) {
             // Print(format!("{}\t", i)),
             // ResetColor,
             // Print(format!("{}\n", l))
-            Print(format!("{}\r", l))
+            Print(format!("{}\r", i))
         ).unwrap();
     }
+}
+
+pub fn clear_screen() {
+    execute!(stdout(), Clear(ClearType::All));
 }
