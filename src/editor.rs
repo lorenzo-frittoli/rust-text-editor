@@ -2,9 +2,9 @@ use std::fs::{self, File, OpenOptions};
 use std::ffi::{OsStr, OsString};
 use std::path::Path;
 use std::io::{stdin, stdout, Read};
-use crossterm::ExecutableCommand;
 use crossterm::{
-    execute, terminal,
+    execute, cursor,
+    terminal::{self, Clear, ClearType},
     style::{Color, Print, ResetColor, SetForegroundColor},
     event::{self, Event, KeyCode, KeyEvent},
 };
@@ -104,11 +104,20 @@ impl Editor {
                 Print(format!("{}\n\r", l))
             ).unwrap();
         }
+        execute!(
+            stdout(),
+            cursor::MoveTo(1,0)
+        ).unwrap();
+    }
+
+    fn clear_screen(&self) -> Result<(), std::io::Error> {
+        execute!(stdout(), Clear(ClearType::All))
     }
 }
 
 impl Drop for Editor {
     fn drop(&mut self) {
         terminal::disable_raw_mode().expect("Could not disable raw mode");
+        self.clear_screen().unwrap();
     }
 }
