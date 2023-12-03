@@ -1,8 +1,10 @@
+use std::arch::x86_64::_mm_castpd_ps;
 use std::fs::{self, File, OpenOptions};
 use std::ffi::OsString;
 use std::path::Path;
 use std::io::{stdout, Read};
 use crossterm::ExecutableCommand;
+use crossterm::cursor::position;
 use crossterm::{
     execute, cursor,
     terminal::{self, Clear, ClearType},
@@ -64,12 +66,14 @@ impl Editor {
         terminal::enable_raw_mode().expect("Couldn't enable raw mode");
         
         let mut contents: String = self.get_contents();
-        let mut pos: (u16, u32) = (0, 0);
-        let mut first_line: u32 = 0;
-        let mut last_line: u32 = contents.lines().count() as u32;
+        let mut first_line = 0;
+        let mut last_line: usize = contents.lines().count();
         
+        stdout().execute(cursor::MoveTo(self.right_padding,0)).unwrap();
         loop {
-            self.draw(&mut contents, &mut pos, &first_line);
+            let (x,y) = cursor::position().unwrap();
+            self.draw(&mut contents, &first_line);
+            stdout().execute(cursor::MoveTo(x,y)).unwrap();
             if let Some(keypress) = self.get_keypress() {
                 let command_option = self.process_keypress(&keypress);
                 
@@ -80,12 +84,56 @@ impl Editor {
                         }
 
                         Command::Move(direction) => {
+                            let mut pos = cursor::position().unwrap();
                             match direction {
-                                Move::Up => {pos.1 = 0.max(pos.1-1)}
-                                Move::Down => {pos.1 = last_line.min(pos.1+1)},
-                                Move::Right => {pos.0 = self.width.min(pos.0+1)},
-                                Move::Left => {pos.0 = (0 as u16).max(pos.0-1)},
-                                // Move::Left => {pos.0 = 0.max(pos.0-1)},
+                                Move::Up => {
+                                    if pos.1 > 0 {
+                                        stdout().execute(cursor::MoveUp(1)).unwrap();
+
+                                    } else if first_line > 0 {
+                                        first_line = first_line - 1;
+                                    }
+                                },
+                                Move::Down => {
+                                    if pos.1 < self.height-1 {
+                                        stdout().execute(cursor::MoveDown(1)).unwrap();
+
+                                    } else if (pos.1 as usize) + first_line < last_line-1 {
+                                        first_line = first_line + 1;
+                                    }
+                                },
+                                Move::Right => {
+                                    let lines: Vec<usize> = contents.lines().map(|x| x.len()).collect();
+                                    if (pos.0 as usize) < lines[pos.1 as usize] + (self.right_padding as usize) - 1 {
+                                        stdout().execute(cursor::MoveRight(1)).unwrap();
+
+                                    } else if pos.1 < (self.height-1 as u16) {
+                                        execute!(
+                                            stdout(),
+                                            cursor::MoveToColumn(self.right_padding),
+                                            cursor::MoveDown(1),
+                                        ).unwrap();
+
+                                    } else if (pos.1 as usize) + first_line < last_line-1 {
+                                        first_line = first_line + 1;
+                                        stdout().execute(cursor::MoveToColumn(self.right_padding)).unwrap();
+                                    }
+                                },
+                                Move::Left => {
+                                    if pos.0 > self.right_padding {
+                                        stdout().execute(cursor::MoveLeft(1)).unwrap();
+                                    } else if pos.1 > 0{
+                                        let lines: Vec<usize> = contents.lines().map(|x| x.len()).collect();
+                                        execute!(
+                                            stdout(),
+                                            cursor::MoveToColumn(lines[(pos.1-1) as usize] as u16 + self.right_padding - 1),
+                                            cursor::MoveUp(1),
+                                        ).unwrap();
+                                    
+                                    } else if first_line > 0 {
+                                        first_line = first_line - 1;
+                                    }
+                                },
                             }
                         }
 
@@ -142,7 +190,7 @@ impl Editor {
                 code: KeyCode::Char('q'),
                 ..
             } => Some(Command::Exit),
-
+            
             _ => return None,
         }
     }
@@ -160,11 +208,7 @@ impl Editor {
         return contents;
     }
 
-    fn draw(&self, content: &mut str, pos: &mut (u16, u32), first_line: &u32) {
-        let (x, y) = pos;
-        let screen_x: u16 = (*x as u16) + self.right_padding;
-        let screen_y: u16 = (*y + first_line) as u16;
-
+    fn draw(&self, content: &mut str, first_line: &usize) {
         self.clear_screen().unwrap();
         for (i,l) in content
             .lines()
@@ -175,7 +219,7 @@ impl Editor {
             execute!(
                 stdout(),
                 SetForegroundColor(Color::Green),
-                Print(format!("{}\t", i)),
+                Print(format!("{}\t", i+first_line)),
                 ResetColor,
                 Print(format!("{}", l)),
             ).unwrap();
@@ -184,10 +228,10 @@ impl Editor {
                 stdout().execute(Print("\n\r")).unwrap();
             }
         }
-        execute!(
-            stdout(),
-            cursor::MoveTo(screen_x, screen_y)
-        ).unwrap();
+        // execute!(
+        //     stdout(),
+        //     cursor::MoveTo(self.right_padding, 0)
+        // ).unwrap();
     }
 
     fn clear_screen(&self) -> Result<(), std::io::Error> {
