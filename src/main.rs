@@ -1,6 +1,6 @@
 use std::env;
-use std::ffi::{OsStr, OsString};
-use std::path::{Path, PathBuf};
+use std::ffi::OsString;
+use std::path::Path;
 
 mod editor;
 
