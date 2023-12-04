@@ -28,6 +28,7 @@ enum Command {
     Move(Move),
     NewLine,
     BackSpace,
+    Delete,
     Save,
     Exit,
 }
@@ -66,6 +67,8 @@ impl Editor {
             .lines()
             .map(|s| s.to_owned())
             .collect();
+
+        if lines.len() == 0 {lines = vec!["".to_owned()]};
 
         let mut first_line = 0;
         
@@ -192,8 +195,19 @@ impl Editor {
                                 }
                                 lines[current_line-1].push_str(&l);
                             }
-                        }
+                        },
                         
+                        Command::Delete => {
+                            let pos = cursor::position().unwrap();
+                            if ((x-self.right_padding) as usize) < lines[current_line].len() {
+                                lines[current_line].remove((x-self.right_padding) as usize);
+
+                            } else if current_line < lines.len()-1 {
+                                let l = lines.remove(current_line+1);
+                                lines[current_line].push_str(&l);
+                            }
+                        },
+
                         Command::Save => {
                             if let Some(file) = &mut self.file {
                                 file.set_len(0).unwrap();
@@ -232,6 +246,11 @@ impl Editor {
                 ..
             } => return self.process_ctrl(keypress),
 
+            KeyEvent {
+                modifiers: KeyModifiers::SHIFT,
+                ..
+            } => return self.process_shift(keypress),
+
             _ => return None,
         }
     }
@@ -244,6 +263,7 @@ impl Editor {
             KeyEvent {code: KeyCode::Left, ..} => return Some(Command::Move(Move::Left)),
             KeyEvent {code: KeyCode::Right, ..} => return Some(Command::Move(Move::Right)),
             KeyEvent {code: KeyCode::Backspace, ..} => return Some(Command::BackSpace),
+            KeyEvent {code: KeyCode::Delete, ..} => return Some(Command::Delete),
             KeyEvent {code: KeyCode::Enter, ..} => return Some(Command::NewLine),
 
             _ => return None,
@@ -258,6 +278,13 @@ impl Editor {
         }
     }
 
+    fn process_shift(&self, keypress: &KeyEvent) -> Option<Command> {
+        match keypress {
+            KeyEvent {code: KeyCode::Char(c), ..} => return Some(Command::Insert(*c)),
+            _ => return None,
+        }
+    }
+    
     fn get_contents(&mut self) -> String {
         let mut contents: String = String::new();
 
